@@ -6,7 +6,6 @@
 // ============================================================
 
 import { State } from './State.js';
-import { Assets } from './Assets.js';
 
 export const Enemies = {
   // Spawn an enemy
@@ -289,27 +288,55 @@ export const Enemies = {
   
   // Draw all enemies
   draw(ctx) {
+    const p = State.player;
+    const imgEnemy = Assets.get('enemy');
+    const imgElite = Assets.get('elite');
+    const imgBoss = Assets.get('boss');
+    const readyEnemy = Assets.isReady('enemy');
+    const readyElite = Assets.isReady('elite');
+    const readyBoss = Assets.isReady('boss');
+
     for (const e of State.enemies) {
       if (e.dead) continue;
 
-      // Sprite render (preferred)
-      const img = e.isBoss ? Assets.get('boss') : (e.isElite ? Assets.get('elite') : Assets.get('enemy'));
-      if (img) {
-        const speed = Math.hypot(e.vx || 0, e.vy || 0);
-        const angle = speed > 0.1 ? Math.atan2(e.vy, e.vx) : 0;
-        // Enemy 'size' is used as a radius-like unit. We draw slightly larger for readability.
-        const drawSize = Math.max(16, e.size * 3.2) * (e.isBoss ? 1.35 : (e.isElite ? 1.1 : 1.0));
+      // Compute facing toward player (screen-space angle uses +PI/2 because sprites point up)
+      const face = Math.atan2((p.y - e.y), (p.x - e.x)) + Math.PI / 2;
+
+      if (e.isBoss && readyBoss) {
         ctx.save();
         ctx.translate(e.x, e.y);
-        ctx.rotate(angle + Math.PI / 2); // sprite is oriented "up"
-        ctx.drawImage(img, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
+        ctx.rotate(face * 0.15); // subtle rotation, boss remains readable
+        const size = e.size * 2.8; // boss is deliberately larger
+        ctx.drawImage(imgBoss, -size / 2, -size / 2, size, size);
         ctx.restore();
-      } else {
-      
+        continue;
+      }
+
+      if (e.isElite && readyElite) {
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        ctx.rotate(face);
+        const size = e.size * 2.4;
+        ctx.drawImage(imgElite, -size / 2, -size / 2, size, size);
+        ctx.restore();
+        continue;
+      }
+
+      if (!e.isBoss && !e.isElite && readyEnemy) {
+        ctx.save();
+        ctx.translate(e.x, e.y);
+        ctx.rotate(face);
+        const size = e.size * 2.2;
+        ctx.drawImage(imgEnemy, -size / 2, -size / 2, size, size);
+        ctx.restore();
+        continue;
+      }
+
+      // Fallback vector rendering (keeps game playable while images load)
       ctx.fillStyle = e.color;
       ctx.shadowColor = e.color;
       ctx.shadowBlur = e.isBoss ? 25 : (e.isElite ? 18 : 10);
-      
+
       if (e.isBoss) {
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -322,27 +349,13 @@ export const Enemies = {
         ctx.fill();
       } else {
         ctx.beginPath();
-        ctx.moveTo(e.x, e.y - e.size);
-        ctx.lineTo(e.x + e.size, e.y);
-        ctx.lineTo(e.x, e.y + e.size);
-        ctx.lineTo(e.x - e.size, e.y);
-        ctx.closePath();
+        ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
         ctx.fill();
       }
+
       ctx.shadowBlur = 0;
-      }
-      
-      // HP bar
-      if (e.hp < e.maxHP) {
-        const barW = e.size * 2;
-        const pct = e.hp / e.maxHP;
-        ctx.fillStyle = 'rgba(0,0,0,0.6)';
-        ctx.fillRect(e.x - barW / 2, e.y - e.size - 12, barW, 6);
-        ctx.fillStyle = pct > 0.5 ? '#00ff88' : pct > 0.25 ? '#ffaa00' : '#ff4444';
-        ctx.fillRect(e.x - barW / 2 + 1, e.y - e.size - 11, (barW - 2) * pct, 4);
-      }
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
     }
   }
-};
-
-export default Enemies;

@@ -191,6 +191,9 @@ export const MapGenerator = {
   generateEnemySpawns(rng, pool, density, w, h, spawn, exit) {
     const spawns = [];
     const count = Math.floor(w * h * density);
+    // Hard cap to prevent absurd obstacle fields (mobile + readability)
+    const maxCount = Math.min(1200, Math.floor((w*h) / 60000));
+    const capped = Math.min(count, maxCount);
     const minDistFromSpawn = 300;
     const minDistFromExit = 200;
     const minDistBetween = 150;
@@ -235,7 +238,7 @@ export const MapGenerator = {
     const spawns = [];
     const count = Math.max(1, Math.floor(w * h * density));
     
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < capped; i++) {
       spawns.push({
         x: rng.range(200, w - 200),
         y: rng.range(200, h - 200),
@@ -252,14 +255,18 @@ export const MapGenerator = {
   generateObstacles(rng, density, w, h) {
     const obstacles = [];
     const count = Math.floor(w * h * density);
+    // Hard cap to prevent absurd obstacle fields (mobile + readability)
+    const maxCount = Math.min(1200, Math.floor((w*h) / 60000));
+    const capped = Math.min(count, maxCount);
     
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < capped; i++) {
       const type = rng.pick(['asteroid', 'debris', 'mine']);
       obstacles.push({
         x: rng.range(100, w - 100),
         y: rng.range(100, h - 100),
         type: type,
-        radius: type === 'asteroid' ? rng.int(30, 80) : rng.int(15, 30),
+        // Realistic scale: keep obstacles readable, not screen-filling
+        radius: type === 'asteroid' ? rng.int(18, 45) : rng.int(10, 20),
         rotation: rng.range(0, Math.PI * 2),
         destructible: type !== 'mine',
         hp: type === 'asteroid' ? rng.int(20, 50) : 10
@@ -291,30 +298,21 @@ export const MapGenerator = {
   },
   
   // Decorations (no collision, just visual)
+  // Decorations (no collision, just visual) - kept extremely subtle (layer/debug only)
   generateDecorations(rng, biome, w, h) {
-    const decorations = [];
-    const count = Math.floor(w * h * 0.001); // Sparse
-    
-    const types = {
-      'space': ['star_cluster', 'nebula_wisp', 'dust_cloud'],
-      'asteroid': ['rock_small', 'crystal', 'ice_chunk'],
-      'station': ['debris', 'panel', 'wire']
-    };
-    
-    const pool = types[biome] || types['space'];
-    
+    const dec = [];
+    // Use small, low-alpha dust points instead of large blobs/tiles.
+    const count = Math.min(180, Math.floor((w * h) / 200000));
     for (let i = 0; i < count; i++) {
-      decorations.push({
+      dec.push({
         x: rng.range(0, w),
         y: rng.range(0, h),
-        type: rng.pick(pool),
-        scale: rng.range(0.5, 1.5),
-        rotation: rng.range(0, Math.PI * 2),
-        alpha: rng.range(0.3, 0.7)
+        scale: rng.range(0.6, 1.4),
+        alpha: rng.range(0.03, 0.08),
+        type: 'dust'
       });
     }
-    
-    return decorations;
+    return dec;
   },
   
   // Parallax layer generation
@@ -325,7 +323,6 @@ export const MapGenerator = {
       // Layer 0: Deep background (slowest)
       background: {
         color: cfg.bgColor || '#0a0a15',
-        textureKey: cfg.bgTexture ? ('bg_' + cfg.bgTexture) : null,
         stars: this.generateStarfield(rng, w * 1.5, h * 1.5, 0.0003),
         scrollSpeed: 0.1
       },
@@ -350,8 +347,11 @@ export const MapGenerator = {
   generateStarfield(rng, w, h, density) {
     const stars = [];
     const count = Math.floor(w * h * density);
+    // Hard cap to prevent absurd obstacle fields (mobile + readability)
+    const maxCount = Math.min(1200, Math.floor((w*h) / 60000));
+    const capped = Math.min(count, maxCount);
     
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < capped; i++) {
       stars.push({
         x: rng.range(0, w),
         y: rng.range(0, h),
@@ -372,7 +372,7 @@ export const MapGenerator = {
     const count = nebulaConfig.count || rng.int(3, 8);
     const color = nebulaConfig.color || '#4400aa';
     
-    for (let i = 0; i < count; i++) {
+    for (let i = 0; i < capped; i++) {
       wisps.push({
         x: rng.range(0, w),
         y: rng.range(0, h),

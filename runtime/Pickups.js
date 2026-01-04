@@ -17,7 +17,8 @@ export const Pickups = {
       const pk = State.pickups[i];
       
       // Gravity
-      pk.vy += 100 * dt;
+      // Space mode: no gravity
+      // pk.vy += 100 * dt;
       pk.x += pk.vx * dt;
       pk.y += pk.vy * dt;
       

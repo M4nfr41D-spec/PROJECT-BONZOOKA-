@@ -23,7 +23,6 @@
     },
     "parallax": {
       "bgColor": "#080810",
-      "bgTexture": "destruction",
       "nebula": {
         "enabled": true,
         "count": 5,
@@ -60,7 +59,6 @@
     },
     "parallax": {
       "bgColor": "#100818",
-      "bgTexture": "toxicity",
       "nebula": {
         "enabled": true,
         "count": 8,
@@ -97,7 +95,6 @@
     },
     "parallax": {
       "bgColor": "#050508",
-      "bgTexture": "void",
       "nebula": {
         "enabled": true,
         "count": 3,

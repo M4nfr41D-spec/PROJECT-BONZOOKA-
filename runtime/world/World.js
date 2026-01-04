@@ -8,9 +8,9 @@
 
 import { State } from '../State.js';
 import { MapGenerator } from './MapGenerator.js';
+import { Assets } from '../Assets.js';
 import { Camera } from './Camera.js';
 import { SeededRandom } from './SeededRandom.js';
-import { Assets } from '../Assets.js';
 
 export const World = {
   currentZone: null,
@@ -347,23 +347,23 @@ export const World = {
       
       // Draw based on type
       switch (obs.type) {
-        case 'asteroid':
-          {
-            const obsImg = Assets.get('obstacle');
-            if (obsImg) {
-              const d = Math.max(24, obs.radius * 2.2);
-              ctx.drawImage(obsImg, -d / 2, -d / 2, d, d);
-            } else {
-              ctx.fillStyle = '#555566';
-              ctx.beginPath();
-              ctx.arc(0, 0, obs.radius, 0, Math.PI * 2);
-              ctx.fill();
-              ctx.strokeStyle = '#333344';
-              ctx.lineWidth = 2;
-              ctx.stroke();
-            }
+        case 'asteroid': {
+          const imgObs = Assets.get('obstacle');
+          if (Assets.isReady('obstacle')) {
+            // Use sprite. Radius defines footprint.
+            const size = obs.radius * 1.6;
+            ctx.drawImage(imgObs, -size / 2, -size / 2, size, size);
+          } else {
+            ctx.fillStyle = '#555566';
+            ctx.beginPath();
+            ctx.arc(0, 0, obs.radius, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#333344';
+            ctx.lineWidth = 2;
+            ctx.stroke();
           }
           break;
+        }
           
         case 'debris':
           ctx.fillStyle = '#444455';
@@ -441,25 +441,27 @@ export const World = {
     // Layer 0: Background color
     ctx.fillStyle = parallax.background.color;
     ctx.fillRect(0, 0, screenW, screenH);
-
-    // Layer 0.5: Background texture (subtle, tiled)
-    if (parallax.background.textureKey) {
-      const tex = Assets.get(parallax.background.textureKey);
-      if (tex) {
-        const tOffsetX = camX * 0.03;
-        const tOffsetY = camY * 0.03;
-        const tw = tex.width;
-        const th = tex.height;
-        // Keep this intentionally subtle so gameplay stays readable
-        ctx.globalAlpha = 0.10;
-        for (let x = -tw; x <= screenW + tw; x += tw) {
-          for (let y = -th; y <= screenH + th; y += th) {
-            ctx.drawImage(tex, x - (tOffsetX % tw), y - (tOffsetY % th));
-          }
-        }
-        ctx.globalAlpha = 1;
-      }
+    // Subtle debug grid (very low alpha) to read parallax/scale without visual noise
+    ctx.save();
+    ctx.globalAlpha = 0.04;
+    ctx.strokeStyle = '#ffffff';
+    ctx.lineWidth = 1;
+    const spacing = 220;
+    const ox = -((camX * 0.08) % spacing);
+    const oy = -((camY * 0.08) % spacing);
+    for (let x = ox; x < screenW; x += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, screenH);
+      ctx.stroke();
     }
+    for (let y = oy; y < screenH; y += spacing) {
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(screenW, y);
+      ctx.stroke();
+    }
+    ctx.restore();
     
     // Layer 0: Deep stars
     const bgOffsetX = camX * parallax.background.scrollSpeed;

@@ -21,7 +21,6 @@ import { Input } from './runtime/Input.js';
 import { UI } from './runtime/UI.js';
 import { DamageTelemetry } from './runtime/DamageTelemetry.js';
 import { HitFlash } from "./runtime/HitFlash.js";
-import { Assets } from './runtime/Assets.js';
 
 // World System
 import { Camera } from './runtime/world/Camera.js';
@@ -58,9 +57,6 @@ const Game = {
     
     // Load data
     await loadAllData();
-
-    // Load image assets (sprites/background textures)
-    await Assets.load();
     
     // Load save
     Save.load();
@@ -69,8 +65,7 @@ const Game = {
     State.modules = {
       Save, Stats, Leveling, Items, Player, 
       Enemies, Bullets, Pickups, Particles, UI,
-      Camera, World, SceneManager,
-      Assets
+      Camera, World, SceneManager
     };
     
     // Initialize systems

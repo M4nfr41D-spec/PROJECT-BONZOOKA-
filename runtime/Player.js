@@ -170,54 +170,47 @@ export const Player = {
   
   draw(ctx) {
     const p = State.player;
-
-    // Sprite render (preferred)
-    const shipImg = Assets.get('player');
-    if (shipImg) {
-      const drawSize = Math.max(28, p.radius * 4.0); // realistic presence
-      ctx.save();
-      ctx.translate(p.x, p.y);
-      ctx.rotate(p.angle + Math.PI / 2); // sprite is oriented "up"
-      ctx.drawImage(shipImg, -drawSize / 2, -drawSize / 2, drawSize, drawSize);
-      ctx.restore();
-      return;
-    }
     
     ctx.save();
     ctx.translate(p.x, p.y);
     ctx.rotate(p.angle + Math.PI / 2); // Ship sprite points up
     
-    // Ship body
-    ctx.beginPath();
-    ctx.moveTo(0, -20);
-    ctx.lineTo(-14, 16);
-    ctx.lineTo(0, 10);
-    ctx.lineTo(14, 16);
-    ctx.closePath();
-    
-    // Gradient fill
-    const grad = ctx.createLinearGradient(0, -20, 0, 16);
-    grad.addColorStop(0, '#00ffaa');
-    grad.addColorStop(1, '#005544');
-    ctx.fillStyle = grad;
-    ctx.fill();
-    
-    // Outline
-    ctx.strokeStyle = '#00ff88';
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    
-    // Engine glow when moving
-    const isMoving = Math.abs(p.vx) > 10 || Math.abs(p.vy) > 10;
-    if (isMoving) {
+    const img = Assets.get('player');
+    const useSprite = Assets.isReady('player');
+
+    if (useSprite) {
+      // Realistic scaling: radius defines visual footprint
+      const size = p.radius * 2.6;
+      ctx.globalAlpha = 1;
+      ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    } else {
+      // Fallback vector ship (keeps game playable while images load)
+      // Ship body
       ctx.beginPath();
-      ctx.moveTo(-8, 14);
-      ctx.lineTo(0, 26 + Math.random() * 6);
-      ctx.lineTo(8, 14);
-      ctx.fillStyle = `rgba(0, 200, 255, ${0.6 + Math.random() * 0.4})`;
+      ctx.moveTo(0, -20);
+      ctx.lineTo(-14, 16);
+      ctx.lineTo(0, 10);
+      ctx.lineTo(14, 16);
+      ctx.closePath();
+
+      // Gradient fill
+      const grad = ctx.createLinearGradient(0, -20, 0, 16);
+      grad.addColorStop(0, '#00aaff');
+      grad.addColorStop(1, '#004477');
+      ctx.fillStyle = grad;
+      ctx.fill();
+
+      // Outline
+      ctx.strokeStyle = '#ffffff';
+      ctx.lineWidth = 2;
+      ctx.stroke();
+
+      // Cockpit
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.6)';
+      ctx.beginPath();
+      ctx.ellipse(0, -5, 6, 10, 0, 0, Math.PI * 2);
       ctx.fill();
     }
-    
     ctx.restore();
     
     // Shield effect
