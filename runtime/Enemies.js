@@ -1,11 +1,11 @@
-/* Copyright (c) Manfred Foissner. All rights reserved. */
-/* License: See LICENSE.txt in the project root. */
-
+// Copyright (c) Manfred Foissner. See LICENSE.txt
 // ============================================================
 // ENEMIES.js - Enemy System
 // ============================================================
 
 import { State } from './State.js';
+import { Collision } from './Collision.js';
+import { World } from './world/World.js';
 
 export const Enemies = {
   // Spawn an enemy
@@ -135,40 +135,50 @@ export const Enemies = {
   },
   
   // Update all enemies
-    update(dt, canvas, explorationMode = false) {
-    const zone = explorationMode ? (State.modules?.World?.currentZone || null) : null;
-    const margin = 200;
+  update(dt, canvas, explorationMode = false) {
+    const zone = (typeof World !== 'undefined') ? World.currentZone : null;
 
     for (const e of State.enemies) {
       if (e.dead) continue;
-      
+
       e.patternTime += dt;
-      this.applyPattern(e, dt, canvas);
-      
+
+      if (explorationMode && zone) {
+        // World-space AI (no canvas bounds)
+        this.applyExplorationAI(e, dt);
+      } else {
+        // Legacy arcade patterns (canvas-space)
+        this.applyPattern(e, dt, canvas);
+
+        // Keep on screen (legacy only)
+        if (e.x < 30) e.vx = Math.abs(e.vx);
+        if (e.x > canvas.width - 30) e.vx = -Math.abs(e.vx);
+      }
+
       e.x += e.vx * dt;
       e.y += e.vy * dt;
-      
-      // Despawn / out-of-bounds
-      if (explorationMode && zone) {
-        if (e.x < -margin || e.y < -margin || e.x > zone.width + margin || e.y > zone.height + margin) {
-          e.dead = true;
-          continue;
-        }
-      } else {
+
+      // Exploration collisions: soft-slide against zone obstacles
+      if (explorationMode && zone && typeof Collision !== 'undefined') {
+        Collision.resolveEntityVsObstacles(e, zone, { softness: 0.9 });
+        Collision.cleanupZoneObstacles(zone);
+      }
+
+      // Despawn logic (legacy only). Exploration keeps enemies inside zone via clamp.
+      if (!explorationMode) {
         if (e.y > canvas.height + 100 || e.x < -100 || e.x > canvas.width + 100) {
           e.dead = true;
           continue;
         }
       }
-      
-      // Shooting
-      e.shootTimer -= dt;
-      if (e.shootTimer <= 0 && e.y > 30 && e.y < canvas.height * 0.6) {
-        e.shootTimer = e.shootInterval + Math.random();
-        this.shoot(e);
+
+      // Health check
+      if (e.hp <= 0) {
+        this.kill(e);
       }
     }
-    
+
+    // Remove dead enemies
     State.enemies = State.enemies.filter(e => !e.dead);
   },
   
@@ -206,7 +216,76 @@ export const Enemies = {
     // Keep on screen
     if (e.x < 30) e.vx = Math.abs(e.vx);
     if (e.x > canvas.width - 30) e.vx = -Math.abs(e.vx);
+  }
+
+  // Exploration AI (World-space). No canvas bounds, no default downward drift.
+  applyExplorationAI(e, dt) {
+    const zone = (typeof World !== 'undefined') ? World.currentZone : null;
+    const p = State.player;
+    if (!zone || !p) return;
+
+    // Aggro & movement
+    const aggro = e.isBoss ? 900 : (e.isElite ? 650 : 520);
+    const leash = e.isBoss ? 1400 : 900; // return/idle if too far
+    const dx = p.x - e.x, dy = p.y - e.y;
+    const dist = Math.hypot(dx, dy);
+
+    // Default: idle drift (tiny) so the scene doesn't feel frozen
+    let targetVx = 0, targetVy = 0;
+
+    if (dist < aggro) {
+      // Chase (boss slower but persistent)
+      const spdMul = e.isBoss ? 0.75 : (e.isElite ? 1.0 : 0.95);
+      if (dist > 6) {
+        targetVx = (dx / dist) * e.speed * spdMul;
+        targetVy = (dy / dist) * e.speed * spdMul;
+      }
+
+      // Simple strafe for elites/boss (side-step)
+      if (e.isElite || e.isBoss) {
+        const strafe = (e.isBoss ? 0.35 : 0.55) * e.speed;
+        const sx = -dy / (dist || 1);
+        const sy = dx / (dist || 1);
+        targetVx += sx * strafe;
+        targetVy += sy * strafe;
+      }
+
+      // Shooting (world-distance based)
+      const fireRange = e.isBoss ? 780 : (e.isElite ? 620 : 520);
+      if (dist < fireRange) {
+        e.shootTimer -= dt;
+        if (e.shootTimer <= 0) {
+          e.shootTimer = e.shootInterval;
+          this.shoot(e);
+        }
+      } else {
+        // reset timer slowly so enemies don't insta-burst after long chase
+        e.shootTimer = Math.min(e.shootTimer, e.shootInterval * 0.5);
+      }
+    } else if (dist > leash) {
+      // Too far: gently drift towards center so they don't end up in corners forever
+      const cx = zone.width * 0.5, cy = zone.height * 0.5;
+      const ddx = cx - e.x, ddy = cy - e.y;
+      const d = Math.hypot(ddx, ddy);
+      if (d > 10) {
+        targetVx = (ddx / d) * e.speed * 0.25;
+        targetVy = (ddy / d) * e.speed * 0.25;
+      }
+    }
+
+    // Smooth velocity changes
+    const accel = 6.0;
+    e.vx += (targetVx - e.vx) * Math.min(1, accel * dt);
+    e.vy += (targetVy - e.vy) * Math.min(1, accel * dt);
+
+    // Keep within zone bounds (soft clamp)
+    const margin = 40;
+    if (e.x < margin) { e.x = margin; e.vx = Math.max(0, e.vx); }
+    if (e.y < margin) { e.y = margin; e.vy = Math.max(0, e.vy); }
+    if (e.x > zone.width - margin) { e.x = zone.width - margin; e.vx = Math.min(0, e.vx); }
+    if (e.y > zone.height - margin) { e.y = zone.height - margin; e.vy = Math.min(0, e.vy); }
   },
+,
   
   // Enemy shoots
   shoot(e) {
@@ -288,55 +367,13 @@ export const Enemies = {
   
   // Draw all enemies
   draw(ctx) {
-    const p = State.player;
-    const imgEnemy = Assets.get('enemy');
-    const imgElite = Assets.get('elite');
-    const imgBoss = Assets.get('boss');
-    const readyEnemy = Assets.isReady('enemy');
-    const readyElite = Assets.isReady('elite');
-    const readyBoss = Assets.isReady('boss');
-
     for (const e of State.enemies) {
       if (e.dead) continue;
-
-      // Compute facing toward player (screen-space angle uses +PI/2 because sprites point up)
-      const face = Math.atan2((p.y - e.y), (p.x - e.x)) + Math.PI / 2;
-
-      if (e.isBoss && readyBoss) {
-        ctx.save();
-        ctx.translate(e.x, e.y);
-        ctx.rotate(face * 0.15); // subtle rotation, boss remains readable
-        const size = e.size * 2.8; // boss is deliberately larger
-        ctx.drawImage(imgBoss, -size / 2, -size / 2, size, size);
-        ctx.restore();
-        continue;
-      }
-
-      if (e.isElite && readyElite) {
-        ctx.save();
-        ctx.translate(e.x, e.y);
-        ctx.rotate(face);
-        const size = e.size * 2.4;
-        ctx.drawImage(imgElite, -size / 2, -size / 2, size, size);
-        ctx.restore();
-        continue;
-      }
-
-      if (!e.isBoss && !e.isElite && readyEnemy) {
-        ctx.save();
-        ctx.translate(e.x, e.y);
-        ctx.rotate(face);
-        const size = e.size * 2.2;
-        ctx.drawImage(imgEnemy, -size / 2, -size / 2, size, size);
-        ctx.restore();
-        continue;
-      }
-
-      // Fallback vector rendering (keeps game playable while images load)
+      
       ctx.fillStyle = e.color;
       ctx.shadowColor = e.color;
       ctx.shadowBlur = e.isBoss ? 25 : (e.isElite ? 18 : 10);
-
+      
       if (e.isBoss) {
         ctx.beginPath();
         for (let i = 0; i < 6; i++) {
@@ -349,14 +386,26 @@ export const Enemies = {
         ctx.fill();
       } else {
         ctx.beginPath();
-        ctx.arc(e.x, e.y, e.size, 0, Math.PI * 2);
+        ctx.moveTo(e.x, e.y - e.size);
+        ctx.lineTo(e.x + e.size, e.y);
+        ctx.lineTo(e.x, e.y + e.size);
+        ctx.lineTo(e.x - e.size, e.y);
+        ctx.closePath();
         ctx.fill();
       }
-
       ctx.shadowBlur = 0;
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = 2;
-      ctx.stroke();
+      
+      // HP bar
+      if (e.hp < e.maxHP) {
+        const barW = e.size * 2;
+        const pct = e.hp / e.maxHP;
+        ctx.fillStyle = 'rgba(0,0,0,0.6)';
+        ctx.fillRect(e.x - barW / 2, e.y - e.size - 12, barW, 6);
+        ctx.fillStyle = pct > 0.5 ? '#00ff88' : pct > 0.25 ? '#ffaa00' : '#ff4444';
+        ctx.fillRect(e.x - barW / 2 + 1, e.y - e.size - 11, (barW - 2) * pct, 4);
+      }
     }
   }
-}
+};
+
+export default Enemies;
